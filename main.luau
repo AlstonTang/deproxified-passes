@@ -21,7 +21,7 @@ local RunService = game:GetService("RunService")
 local getPassesRemoteFunction = game.ReplicatedStorage.getPassesFromUserId
 local updatePassStatus = game.ReplicatedStorage.UpdatePassStatus
 
-local function onInvoke(player: Player, userId: number | nil): {any}
+local function onInvoke(player: Player, userId: number?, noGetOwnedInfo: boolean?): {any}
 	userId = userId or player.UserId
 	local allPassData = {}
 
@@ -69,17 +69,32 @@ local function onInvoke(player: Player, userId: number | nil): {any}
 		RunService.Heartbeat:Wait()
 	until count >= #items
 
-	for _, pass in allPassData do
-		local success, isOwned = pcall(function()
-			return mps:UserOwnsGamePassAsync(player.UserId, pass.ProductId)
-		end)
+	count = 0
 
-		if success then
-			pass.RequestedPlayerOwnsIt = isOwned
-		else
-			pass.RequestedPlayerOwnsIt = false
-		end
+	for _, pass in allPassData do
+		task.spawn(function()
+			if noGetOwnedInfo then
+				pass.RequestedPlayerOwnsIt = false
+				return
+			end
+
+			local success, isOwned = pcall(function()
+				return mps:UserOwnsGamePassAsync(player.UserId, pass.ProductId)
+			end)
+	
+			if success then
+				pass.RequestedPlayerOwnsIt = isOwned
+			else
+				pass.RequestedPlayerOwnsIt = false
+			end
+
+			count += 1
+		end)
 	end
+
+	repeat
+		RunService.Heartbeat:Wait()
+	until count >= #allPassData
 
 	return allPassData
 end
